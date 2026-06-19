@@ -11,77 +11,112 @@
       <header class="topbar">
         <div>
           <h1>🎮 坦克大战</h1>
-          <p id="roomStatus">未加入房间</p>
+          <p id="topStatus">请选择模式</p>
         </div>
-        <div class="room-chip">
-          <span>房间</span>
-          <strong id="roomIdLabel">------</strong>
-          <button id="shareButton" type="button">分享</button>
-        </div>
+        <button id="returnLobbyTop" class="ghost hidden" type="button">返回大厅</button>
       </header>
 
-      <section class="lobby" id="lobby">
-        <label class="field">
-          <span>昵称</span>
-          <input id="playerName" maxlength="18" value="玩家" autocomplete="nickname">
-        </label>
-        <button id="createRoom" class="primary" type="button">创建房间</button>
-        <label class="field room-entry">
-          <span>加入房间</span>
-          <input id="joinRoomId" inputmode="numeric" maxlength="6" aria-label="六位房间号">
-        </label>
-        <button id="joinRoom" type="button">加入房间</button>
-        <button id="randomMap" type="button">随机地图</button>
-        <button id="leaveRoom" type="button">返回大厅</button>
+      <section id="lobbyView" class="view lobby-view">
+        <div class="lobby-panel">
+          <label class="field">
+            <span>昵称</span>
+            <input id="playerName" maxlength="18" value="玩家" autocomplete="nickname">
+          </label>
+          <div class="mode-grid">
+            <button id="openPvp" class="mode-button" type="button">
+              <strong>PVP 模式</strong>
+              <span>创建或加入在线房间</span>
+            </button>
+            <button id="openPve" class="mode-button" type="button">
+              <strong>PVE 模式</strong>
+              <span>单人或双人保护老家</span>
+            </button>
+          </div>
+          <div class="join-row">
+            <input id="quickRoomId" maxlength="6" inputmode="numeric" placeholder="输入 6 位房间号">
+            <button id="quickJoin" type="button">加入房间</button>
+          </div>
+          <p id="lobbyError" class="error-line"></p>
+        </div>
       </section>
 
-      <section class="content-grid">
-        <div class="game-stage">
-          <canvas id="gameCanvas" width="624" height="624" aria-label="坦克大战游戏画面"></canvas>
-          <div class="hud-row">
-            <div id="hpPanel">血量: ---</div>
-            <div id="mapPanel">地图: 随机</div>
-            <div id="controlHint">P1: WASD+空格 | P2: 方向键+回车</div>
+      <section id="pvpView" class="view hidden">
+        <div class="room-toolbar">
+          <div>
+            <span>房间号</span>
+            <strong id="roomIdLabel">------</strong>
           </div>
-          <div class="overlay" id="overlay">
-            <h2 id="overlayTitle">创建或加入房间</h2>
-            <p id="overlayText">需要两名玩家，满人自动开始对战。</p>
-            <div class="overlay-actions">
-              <button id="playAgain" type="button">再来一局</button>
-              <button id="backToLobby" type="button">返回大厅</button>
-            </div>
-          </div>
+          <label class="toggle">
+            <input id="pvpPowerups" type="checkbox" checked>
+            <span>有道具模式</span>
+          </label>
+          <button id="createRoom" type="button">创建房间</button>
+          <input id="joinRoomId" maxlength="6" inputmode="numeric" placeholder="6 位房间号">
+          <button id="joinRoom" type="button">加入房间</button>
+          <button id="startPvp" class="primary" type="button">开始游戏</button>
+          <button id="leaveRoom" type="button">返回大厅</button>
         </div>
-
-        <aside class="side-panel">
-          <section>
-            <div class="panel-title">
-              <h2>🏆 排行榜</h2>
-              <button id="refreshLeaderboard" type="button">刷新</button>
+        <div class="game-layout">
+          <div class="stage-wrap">
+            <canvas id="pvpCanvas" width="720" height="720" aria-label="PVP 坦克对战画面"></canvas>
+            <div id="pvpOverlay" class="overlay">
+              <h2>PVP 房间</h2>
+              <p>创建房间或输入房间号加入。房主手动开始，至少 2 人，最多 4 人。</p>
             </div>
-            <ol id="leaderboard" class="leaderboard"></ol>
-          </section>
+          </div>
+          <aside class="side-panel">
+            <h2>玩家列表</h2>
+            <div id="pvpPlayers" class="players-list"></div>
+            <h2>操作提示</h2>
+            <p>移动：W/A/S/D 或方向键</p>
+            <p>射击：空格 或 回车</p>
+            <p>被击败后自动观战。</p>
+          </aside>
+        </div>
+      </section>
 
-          <section>
-            <div class="panel-title">
-              <h2>📊 本局统计</h2>
-              <button id="resetStats" type="button">重置</button>
+      <section id="pveView" class="view hidden">
+        <div class="room-toolbar">
+          <label class="toggle">
+            <input id="pveTwoPlayers" type="checkbox">
+            <span>双人合作</span>
+          </label>
+          <button id="startPve" class="primary" type="button">开始 PVE</button>
+          <button id="powerupBook" type="button">道具图鉴</button>
+          <button id="leavePve" type="button">返回大厅</button>
+        </div>
+        <div class="game-layout">
+          <div class="stage-wrap">
+            <canvas id="pveCanvas" width="720" height="720" aria-label="PVE 坦克对战画面"></canvas>
+            <div id="pveOverlay" class="overlay">
+              <h2>PVE 模式</h2>
+              <p>选择单人或双人合作，保护屏幕下方中间的老家。</p>
             </div>
-            <div id="currentStats" class="stats-grid">
-              <span>局数</span><strong>0</strong>
-              <span>胜场</span><strong>0</strong>
-              <span>击杀</span><strong>0</strong>
-              <span>伤害</span><strong>0</strong>
-            </div>
-          </section>
-
-          <section>
-            <h2>👥 玩家</h2>
-            <div id="playersList" class="players-list"></div>
-          </section>
-        </aside>
+          </div>
+          <aside class="side-panel">
+            <h2>计分板</h2>
+            <div id="pveScore" class="score-card">总积分：0</div>
+            <div id="pveStats" class="stats-list"></div>
+            <h2>操作提示</h2>
+            <p>玩家 1：W/A/S/D + 空格</p>
+            <p>玩家 2：方向键 + 回车</p>
+            <p>本模式没有小地图。</p>
+          </aside>
+        </div>
       </section>
     </main>
+
+    <div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-card">
+        <h2 id="modalTitle">提示</h2>
+        <div id="modalBody"></div>
+        <div class="modal-actions">
+          <button id="modalAgain" class="primary hidden" type="button">再来一局</button>
+          <button id="modalLobby" type="button">返回大厅</button>
+          <button id="modalClose" type="button">关闭</button>
+        </div>
+      </div>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="/games/main.js"></script>
