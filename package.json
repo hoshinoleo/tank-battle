@@ -1,0 +1,24 @@
+{
+  "name": "tank-game",
+  "version": "1.0.0",
+  "description": "Authoritative multiplayer tank battle game with rooms, maps, leaderboard, and Socket.io networking.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "tank",
+    "multiplayer",
+    "socket.io",
+    "canvas"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "socket.io": "^4.8.3"
+  }
+}
