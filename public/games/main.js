@@ -297,8 +297,34 @@ function generateMap() {
       grid[y][x] = roll < 0.45 ? 'brick' : roll < 0.62 ? 'steel' : roll < 0.8 ? 'bush' : 'water';
     }
   }
+  clearSpawnAreasAndPaths(grid);
   grid[13][7] = 'base';
   return grid;
+}
+
+function clearSpawnAreasAndPaths(grid) {
+  const clear = (x, y) => {
+    if (x >= 0 && y >= 0 && x < GRID && y < GRID) grid[y][x] = 'empty';
+  };
+
+  for (const startX of [0, 13]) {
+    for (const startY of [0, 12]) {
+      for (let y = startY; y < startY + 2; y += 1) {
+        for (let x = startX; x < startX + 2; x += 1) clear(x, y);
+      }
+    }
+  }
+
+  for (let y = 0; y <= 13; y += 1) {
+    clear(1, y);
+    clear(13, y);
+  }
+  for (let x = 1; x <= 13; x += 1) clear(x, 7);
+  for (let y = 0; y <= 7; y += 1) clear(7, y);
+  for (let y = 7; y <= 13; y += 1) {
+    clear(5, y);
+    clear(9, y);
+  }
 }
 
 function protectBase(kind) {
@@ -715,3 +741,4 @@ requestAnimationFrame(frame);
 console.log('[功能一] PVE 关卡制已加载：8 关起动态提升难度。');
 console.log('[功能二] 草丛隐身与顶层遮挡渲染已加载。');
 console.log('[功能三] AI 已加载 30% 老家目标与动态切换行为。');
+console.log('[功能四] 四角出生区与通往战场中心的通道已保留。');
