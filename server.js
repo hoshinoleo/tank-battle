@@ -604,7 +604,7 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing' || room.hostId !== socket.id) return;
     socket.to(`pve:${room.id}`).emit('pve_state', state);
     if (state.gameOver) {
-      room.status = 'game_over';
+      room.status = 'waiting';
       emitPveRoom(room);
     }
   });

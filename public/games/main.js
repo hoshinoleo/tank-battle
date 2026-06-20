@@ -137,6 +137,14 @@ function showPowerupBook() {
   showModal('道具图鉴', `<div class="book-grid">${powerups.map((item) => `<div><span class="book-icon">${item.icon}</span><b>${item.name}</b><span>${item.desc}</span></div>`).join('')}</div>`);
 }
 
+function updatePveToolbar() {
+  const playing = pveRoom?.status === 'playing';
+  $('createPveRoom').classList.toggle('hidden', playing);
+  $('joinPveRoomId').classList.toggle('hidden', playing);
+  $('joinPveRoom').classList.toggle('hidden', playing);
+  $('startPve').classList.toggle('hidden', playing || !pveIsHost);
+}
+
 function joinPvp(id) {
   const roomId = String(id || '').trim();
   if (!/^\d{6}$/.test(roomId)) {
@@ -171,6 +179,7 @@ function returnLobby() {
   pveRoom = null;
   pveIsHost = false;
   pveRemoteKeys = {};
+  updatePveToolbar();
   pvpState = { status: 'idle', tanks: [], bullets: [], powerups: [], explosions: [] };
   $('roomIdLabel').textContent = '------';
   $('shareRoomBtn').classList.add('hidden');
@@ -225,7 +234,7 @@ socket.on('pve_room_state', (state) => {
   pveIsHost = state.hostId === socket.id;
   $('pveRoomIdLabel').textContent = state.roomId || '------';
   $('sharePveRoomBtn').classList.toggle('hidden', !state.roomId);
-  $('startPve').classList.toggle('hidden', !pveIsHost);
+  updatePveToolbar();
   if (state.status === 'waiting') {
     const names = (state.players || []).map((player) => player.name).join('、');
     $('pveOverlay').classList.remove('hidden');
@@ -244,6 +253,7 @@ socket.on('pve_room_closed', ({ message }) => {
 socket.on('pve_game_started', ({ playerCount }) => {
   $('pveOverlay').classList.add('hidden');
   $('topStatus').textContent = 'PVE 对战中';
+  updatePveToolbar();
   if (pveIsHost) startPve(playerCount);
   else pve = null;
 });
@@ -895,6 +905,7 @@ function frame(nowMs) {
 }
 
 showView('lobby');
+updatePveToolbar();
 drawPvp();
 drawPve();
 requestAnimationFrame(frame);
