@@ -31,6 +31,16 @@ const enemyTypes = [
   { level: 4, name: '精英', color: '#d84a42', hp: 2, score: 2000, water: true, pierce: true, speed: 122 }
 ];
 
+const pveLevelConfigs = [
+  [8, 2, 0, 0],
+  [6, 4, 0, 0],
+  [5, 5, 0, 0],
+  [3, 5, 2, 0],
+  [2, 4, 4, 0],
+  [1, 3, 4, 2],
+  [0, 2, 4, 4]
+];
+
 let view = 'lobby';
 let pvpState = { status: 'idle', tanks: [], bullets: [], powerups: [], explosions: [] };
 let pvpPlayers = [];
@@ -181,18 +191,85 @@ function startPve(count) {
     items: [],
     explosions: [],
     base,
+    playerCount: count,
+    level: 1,
     score: 0,
     killed: 0,
+    levelKilled: 0,
     totalEnemies: count === 2 ? 15 : 10,
+    enemyQueue: createLevelEnemyQueue(1, count === 2 ? 15 : 10),
     spawned: 0,
     lastSpawn: 0,
     lastPowerup: 0,
     over: false,
-    result: ''
+    result: '',
+    levelTransition: null
   };
   protectBase('brick');
   $('pveOverlay').classList.add('hidden');
   updatePveHud();
+}
+
+function levelWeights(level) {
+  if (level <= pveLevelConfigs.length) return pveLevelConfigs[level - 1];
+  const extra = level - 8;
+  const eliteShare = Math.min(0.48, 0.3 + extra * 0.02);
+  const levelThreeShare = Math.min(0.4, 0.35 + extra * 0.01);
+  const levelTwoShare = Math.max(0.1, 0.25 - extra * 0.015);
+  const levelOneShare = Math.max(0.02, 1 - eliteShare - levelThreeShare - levelTwoShare);
+  return [levelOneShare, levelTwoShare, levelThreeShare, eliteShare];
+}
+
+function scaleEnemyCounts(weights, total) {
+  const weightTotal = weights.reduce((sum, value) => sum + value, 0);
+  const exact = weights.map((value) => (value / weightTotal) * total);
+  const counts = exact.map(Math.floor);
+  let remaining = total - counts.reduce((sum, value) => sum + value, 0);
+  const order = exact
+    .map((value, index) => ({ index, fraction: value - counts[index] }))
+    .sort((a, b) => b.fraction - a.fraction);
+  for (let index = 0; index < remaining; index += 1) counts[order[index].index] += 1;
+  return counts;
+}
+
+function createLevelEnemyQueue(level, total) {
+  const counts = scaleEnemyCounts(levelWeights(level), total);
+  const queue = counts.flatMap((count, typeIndex) => Array(count).fill(typeIndex));
+  for (let index = queue.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [queue[index], queue[swapIndex]] = [queue[swapIndex], queue[index]];
+  }
+  return queue;
+}
+
+function beginNextPveLevel(now) {
+  pve.level += 1;
+  pve.grid = generateMap();
+  pve.base.alive = true;
+  pve.enemies = [];
+  pve.bullets = [];
+  pve.items = [];
+  pve.spawned = 0;
+  pve.levelKilled = 0;
+  pve.lastSpawn = now;
+  pve.lastPowerup = now;
+  pve.enemyQueue = createLevelEnemyQueue(pve.level, pve.totalEnemies);
+  pve.levelTransition = null;
+  protectBase('brick');
+  for (const player of pve.players) {
+    const tx = Math.floor(player.x / TILE);
+    const ty = Math.floor(player.y / TILE);
+    if (pve.grid[ty]?.[tx] !== 'base') pve.grid[ty][tx] = 'empty';
+  }
+  $('pveOverlay').classList.add('hidden');
+  console.log(`[功能一] 已进入 PVE 第 ${pve.level} 关`);
+}
+
+function completePveLevel(now) {
+  if (pve.levelTransition) return;
+  pve.levelTransition = { endsAt: now + 1.5 };
+  $('pveOverlay').classList.remove('hidden');
+  $('pveOverlay').innerHTML = `<h2>第 ${pve.level} 关通关！</h2><p>即将进入下一关。</p>`;
 }
 
 function makeTank(id, name, color, x, y, facing, enemy, type = null) {
@@ -317,8 +394,7 @@ function spawnEnemy(now) {
   if (!pve || pve.spawned >= pve.totalEnemies || now - pve.lastSpawn < 1.5 || pve.enemies.filter((e) => e.alive).length >= 5) return;
   pve.lastSpawn = now;
   pve.spawned += 1;
-  const roll = Math.random();
-  const type = roll < 0.5 ? enemyTypes[0] : roll < 0.75 ? enemyTypes[1] : roll < 0.92 ? enemyTypes[2] : enemyTypes[3];
+  const type = enemyTypes[pve.enemyQueue[pve.spawned - 1] ?? 0];
   const spots = [{ x: TILE / 2, y: TILE / 2 }, { x: 7 * TILE + TILE / 2, y: TILE / 2 }, { x: 14 * TILE + TILE / 2, y: TILE / 2 }];
   const spot = spots[Math.floor(Math.random() * spots.length)];
   pve.enemies.push(makeTank(`e${pve.spawned}`, type.name, type.color, spot.x, spot.y, 'down', true, { ...type }));
@@ -339,6 +415,11 @@ function updateEnemyAI(enemy, dt, now) {
 
 function updatePve(dt, now) {
   if (!pve || pve.over) return;
+  if (pve.levelTransition) {
+    if (now >= pve.levelTransition.endsAt) beginNextPveLevel(now);
+    updatePveHud();
+    return;
+  }
   const p1 = pve.players[0];
   moveTank(p1, (keys.has('KeyD') ? 1 : 0) - (keys.has('KeyA') ? 1 : 0), (keys.has('KeyS') ? 1 : 0) - (keys.has('KeyW') ? 1 : 0), dt, now);
   if (keys.has('Space')) tankShoot(p1, now);
@@ -353,9 +434,9 @@ function updatePve(dt, now) {
   updatePvePowerups(now);
   maybeSpawnPvePowerup(now);
   pve.explosions = pve.explosions.filter((item) => now - item.t < 0.7);
-  if (!pve.base.alive) endPve('失败', '老家被打爆了。');
-  if (pve.players.every((player) => !player.alive)) endPve('失败', '所有玩家都被击败了。');
-  if (pve.killed >= pve.totalEnemies) endPve('胜利', `全部敌人已消灭，总积分 ${pve.score}。`);
+  if (!pve.base.alive) endPve('游戏结束', `老家被打爆了 — 到达第 ${pve.level} 关。`);
+  else if (pve.players.every((player) => !player.alive)) endPve('游戏结束', `所有玩家都被击败了 — 到达第 ${pve.level} 关。`);
+  else if (pve.levelKilled >= pve.totalEnemies) completePveLevel(now);
   updatePveHud();
 }
 
@@ -407,6 +488,7 @@ function damagePveTank(tank, bullet, now) {
   pve.explosions.push({ x: tank.x, y: tank.y, t: now, type: 'boom' });
   if (tank.enemy) {
     pve.killed += 1;
+    pve.levelKilled += 1;
     pve.score += tank.type.score;
   }
 }
@@ -456,9 +538,9 @@ function endPve(result, text) {
 
 function updatePveHud() {
   if (!pve) return;
-  $('pveScore').textContent = `总积分：${pve.score}`;
+  $('pveScore').textContent = `第 ${pve.level} 关 · 总积分：${pve.score}`;
   $('pveStats').innerHTML = `
-    <div>敌人：${pve.killed}/${pve.totalEnemies}</div>
+    <div>本关敌人：${pve.levelKilled}/${pve.totalEnemies}</div>
     <div>场上敌人：${pve.enemies.filter((e) => e.alive).length}</div>
     <div>玩家血量：${pve.players.map((p) => `${p.name} ${'♥'.repeat(Math.max(0, p.hp)) || '阵亡'}`).join('　')}</div>
     <div>地图：随机基地防守</div>
@@ -598,3 +680,5 @@ showView('lobby');
 drawPvp();
 drawPve();
 requestAnimationFrame(frame);
+
+console.log('[功能一] PVE 关卡制已加载：8 关起动态提升难度。');
