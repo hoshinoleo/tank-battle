@@ -47,6 +47,8 @@ const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: true, methods: ['GET', 'POST'] } });
 const rooms = new Map();
 const socketToRoom = new Map();
+const pveRooms = new Map();
+const socketToPveRoom = new Map();
 
 function cleanName(name) {
   const text = String(name || '玩家').trim().slice(0, 18);
@@ -57,8 +59,92 @@ function roomId() {
   let id = '';
   do {
     id = String(Math.floor(100000 + Math.random() * 900000));
-  } while (rooms.has(id));
+  } while (rooms.has(id) || pveRooms.has(id));
   return id;
+}
+
+function publicPvePlayer(player, room) {
+  return {
+    id: player.id,
+    name: player.name,
+    host: room.hostId === player.id
+  };
+}
+
+function emitPveRoom(room) {
+  io.to(`pve:${room.id}`).emit('pve_room_state', {
+    roomId: room.id,
+    status: room.status,
+    hostId: room.hostId,
+    players: room.players.map((player) => publicPvePlayer(player, room))
+  });
+}
+
+function leaveExistingPve(socket) {
+  if (socketToPveRoom.has(socket.id)) removePvePlayer(socket, true);
+}
+
+function createPveRoom(socket, name) {
+  leaveExisting(socket);
+  leaveExistingPve(socket);
+  const id = roomId();
+  const room = {
+    id,
+    players: [{ id: socket.id, name: cleanName(name) }],
+    hostId: socket.id,
+    status: 'waiting'
+  };
+  pveRooms.set(id, room);
+  socketToPveRoom.set(socket.id, id);
+  socket.join(`pve:${id}`);
+  socket.emit('pve_room_created', { roomId: id });
+  emitPveRoom(room);
+}
+
+function joinPveRoom(socket, id, name) {
+  leaveExisting(socket);
+  leaveExistingPve(socket);
+  const key = String(id || '').trim();
+  if (!/^\d{6}$/.test(key)) {
+    socket.emit('pve_room_error', { message: '房间号必须是 6 位数字。' });
+    return;
+  }
+  const room = pveRooms.get(key);
+  if (!room) {
+    socket.emit('pve_room_error', { message: 'PVE 房间不存在。' });
+    return;
+  }
+  if (room.players.length >= 2) {
+    socket.emit('pve_room_error', { message: 'PVE 房间已满，最多 2 人。' });
+    return;
+  }
+  if (room.status !== 'waiting') {
+    socket.emit('pve_room_error', { message: 'PVE 游戏已经开始，无法加入。' });
+    return;
+  }
+  room.players.push({ id: socket.id, name: cleanName(name) });
+  socketToPveRoom.set(socket.id, room.id);
+  socket.join(`pve:${room.id}`);
+  emitPveRoom(room);
+}
+
+function removePvePlayer(socket, silent = false) {
+  const id = socketToPveRoom.get(socket.id);
+  if (!id) return;
+  const room = pveRooms.get(id);
+  socketToPveRoom.delete(socket.id);
+  socket.leave(`pve:${id}`);
+  if (!room) return;
+  room.players = room.players.filter((player) => player.id !== socket.id);
+  if (room.players.length === 0 || room.hostId === socket.id) {
+    if (room.players.length) io.to(`pve:${id}`).emit('pve_room_closed', { message: '房主已离开，PVE 房间已关闭。' });
+    for (const player of room.players) socketToPveRoom.delete(player.id);
+    pveRooms.delete(id);
+    return;
+  }
+  room.status = 'waiting';
+  if (!silent) io.to(`pve:${id}`).emit('pve_room_notice', { message: '队友已离开 PVE 房间。' });
+  emitPveRoom(room);
 }
 
 function publicPlayer(player, room) {
@@ -93,6 +179,7 @@ function leaveExisting(socket) {
 
 function createRoom(socket, name, powerupsEnabled = true) {
   leaveExisting(socket);
+  leaveExistingPve(socket);
   const id = roomId();
   const player = {
     id: socket.id,
@@ -125,6 +212,7 @@ function createRoom(socket, name, powerupsEnabled = true) {
 
 function joinRoom(socket, id, name) {
   leaveExisting(socket);
+  leaveExistingPve(socket);
   const key = String(id || '').trim();
   if (!/^\d{6}$/.test(key)) {
     socket.emit('room_error', { message: '房间号必须是 6 位数字。' });
@@ -487,7 +575,43 @@ io.on('connection', (socket) => {
       shoot: Boolean(keys?.shoot)
     });
   });
-  socket.on('disconnect', () => removePlayer(socket, true));
+  socket.on('create_pve_room', ({ playerName } = {}) => createPveRoom(socket, playerName));
+  socket.on('join_pve_room', ({ roomId: id, playerName } = {}) => joinPveRoom(socket, id, playerName));
+  socket.on('leave_pve_room', () => removePvePlayer(socket));
+  socket.on('start_pve_game', () => {
+    const room = pveRooms.get(socketToPveRoom.get(socket.id));
+    if (!room || room.hostId !== socket.id || room.status !== 'waiting') return;
+    room.status = 'playing';
+    emitPveRoom(room);
+    io.to(`pve:${room.id}`).emit('pve_game_started', { playerCount: room.players.length });
+  });
+  socket.on('pve_input', ({ keys } = {}) => {
+    const room = pveRooms.get(socketToPveRoom.get(socket.id));
+    if (!room || room.status !== 'playing' || room.hostId === socket.id) return;
+    io.to(room.hostId).emit('pve_input', {
+      playerId: socket.id,
+      keys: {
+        up: Boolean(keys?.up),
+        down: Boolean(keys?.down),
+        left: Boolean(keys?.left),
+        right: Boolean(keys?.right),
+        shoot: Boolean(keys?.shoot)
+      }
+    });
+  });
+  socket.on('pve_state', (state = {}) => {
+    const room = pveRooms.get(socketToPveRoom.get(socket.id));
+    if (!room || room.status !== 'playing' || room.hostId !== socket.id) return;
+    socket.to(`pve:${room.id}`).emit('pve_state', state);
+    if (state.gameOver) {
+      room.status = 'game_over';
+      emitPveRoom(room);
+    }
+  });
+  socket.on('disconnect', () => {
+    removePlayer(socket, true);
+    removePvePlayer(socket, true);
+  });
 });
 
 let lastTick = Date.now();

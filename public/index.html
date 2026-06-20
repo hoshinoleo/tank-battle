@@ -77,10 +77,13 @@
 
       <section id="pveView" class="view hidden">
         <div class="room-toolbar">
-          <label class="toggle">
-            <input id="pveTwoPlayers" type="checkbox">
-            <span>双人合作</span>
-          </label>
+          <div>
+            <span>PVE 房间号</span>
+            <span class="room-id-line"><strong id="pveRoomIdLabel">------</strong><button id="sharePveRoomBtn" class="icon-button hidden" type="button" title="复制房间号">📋</button></span>
+          </div>
+          <button id="createPveRoom" type="button">创建 PVE 房间</button>
+          <input id="joinPveRoomId" maxlength="6" inputmode="numeric" placeholder="6 位房间号">
+          <button id="joinPveRoom" type="button">加入房间</button>
           <button id="startPve" class="primary" type="button">开始 PVE</button>
           <button id="powerupBook" type="button">道具图鉴</button>
           <button id="leavePve" type="button">返回大厅</button>
@@ -89,8 +92,8 @@
           <div class="stage-wrap">
             <canvas id="pveCanvas" width="720" height="720" aria-label="PVE 坦克对战画面"></canvas>
             <div id="pveOverlay" class="overlay">
-              <h2>PVE 模式</h2>
-              <p>选择单人或双人合作，保护屏幕下方中间的老家。</p>
+              <h2>PVE 房间</h2>
+              <p>创建房间或输入房间号加入，房主开始游戏。</p>
             </div>
           </div>
           <aside class="side-panel">

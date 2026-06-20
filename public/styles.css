@@ -179,6 +179,17 @@ input {
   color: var(--accent);
 }
 
+.room-id-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+button.icon-button {
+  padding: 3px 7px;
+  line-height: 1.2;
+}
+
 .room-toolbar input {
   width: 140px;
 }

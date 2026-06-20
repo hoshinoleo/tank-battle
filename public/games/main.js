@@ -45,6 +45,10 @@ let view = 'lobby';
 let pvpState = { status: 'idle', tanks: [], bullets: [], powerups: [], explosions: [] };
 let pvpPlayers = [];
 let pve = null;
+let pveRoom = null;
+let pveIsHost = false;
+let pveRemoteKeys = {};
+let lastPveStateSent = 0;
 let lastFrame = performance.now();
 let lastInputSent = 0;
 let modalAction = null;
@@ -98,7 +102,10 @@ window.addEventListener('keydown', (event) => {
 window.addEventListener('keyup', (event) => keys.delete(event.code));
 
 $('openPvp').addEventListener('click', () => showView('pvp'));
-$('openPve').addEventListener('click', () => showView('pve'));
+$('openPve').addEventListener('click', () => {
+  showView('pve');
+  $('pveOverlay').classList.remove('hidden');
+});
 $('returnLobbyTop').addEventListener('click', returnLobby);
 $('leaveRoom').addEventListener('click', returnLobby);
 $('leavePve').addEventListener('click', returnLobby);
@@ -115,7 +122,10 @@ $('joinRoom').addEventListener('click', () => joinPvp($('joinRoomId').value));
 $('quickJoin').addEventListener('click', () => { showView('pvp'); joinPvp($('quickRoomId').value); });
 $('startPvp').addEventListener('click', () => socket.emit('start_pvp'));
 $('pvpPowerups').addEventListener('change', () => socket.emit('set_room_options', { powerupsEnabled: $('pvpPowerups').checked }));
-$('startPve').addEventListener('click', () => startPve($('pveTwoPlayers').checked ? 2 : 1));
+$('createPveRoom').addEventListener('click', () => socket.emit('create_pve_room', { playerName: playerName() }));
+$('joinPveRoom').addEventListener('click', () => joinPve($('joinPveRoomId').value));
+$('startPve').addEventListener('click', () => socket.emit('start_pve_game'));
+$('sharePveRoomBtn').addEventListener('click', () => copyRoomText(`加入我的坦克大战 PVE 房间：${pveRoom?.roomId || ''}`));
 $('powerupBook').addEventListener('click', () => {
   showModal('道具图鉴', `<div class="book-grid">${powerups.map((item) => `<div><b>${item.icon} ${item.name}</b><span>${item.desc}</span></div>`).join('')}</div>`);
 });
@@ -129,14 +139,40 @@ function joinPvp(id) {
   socket.emit('join_room', { roomId, playerName: playerName() });
 }
 
+function joinPve(id) {
+  const roomId = String(id || '').trim();
+  if (!/^\d{6}$/.test(roomId)) {
+    showError('房间号格式错误，请输入 6 位数字。');
+    return;
+  }
+  socket.emit('join_pve_room', { roomId, playerName: playerName() });
+}
+
+async function copyRoomText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+    $('topStatus').textContent = '房间号已复制';
+  } catch {
+    window.prompt('请手动复制房间号', text);
+  }
+}
+
 function returnLobby() {
   if (view === 'pvp') socket.emit('leave_room');
+  if (view === 'pve') socket.emit('leave_pve_room');
   pve = null;
+  pveRoom = null;
+  pveIsHost = false;
+  pveRemoteKeys = {};
   pvpState = { status: 'idle', tanks: [], bullets: [], powerups: [], explosions: [] };
   $('roomIdLabel').textContent = '------';
   $('pvpPlayers').innerHTML = '';
   $('pvpOverlay').classList.remove('hidden');
   $('pvpOverlay').innerHTML = '<h2>PVP 房间</h2><p>创建房间或输入房间号加入。房主手动开始，至少 2 人，最多 4 人。</p>';
+  $('pveRoomIdLabel').textContent = '------';
+  $('sharePveRoomBtn').classList.add('hidden');
+  $('pveOverlay').classList.remove('hidden');
+  $('pveOverlay').innerHTML = '<h2>PVE 房间</h2><p>创建房间或输入房间号加入，房主开始游戏。</p>';
   showView('lobby');
 }
 
@@ -167,6 +203,47 @@ socket.on('pvp_game_over', ({ winnerName, reason, players }) => {
   $('pvpOverlay').innerHTML = `<h2>游戏结束</h2><p>${reason || `${winnerName} 获得胜利。`}</p>`;
 });
 
+socket.on('pve_room_created', ({ roomId }) => {
+  $('pveRoomIdLabel').textContent = roomId;
+  $('sharePveRoomBtn').classList.remove('hidden');
+  $('pveOverlay').classList.remove('hidden');
+  $('pveOverlay').innerHTML = `<h2>PVE 房间已创建</h2><p>房间号：${roomId}。等待队友加入后由房主开始。</p>`;
+});
+socket.on('pve_room_state', (state) => {
+  pveRoom = state;
+  pveIsHost = state.hostId === socket.id;
+  $('pveRoomIdLabel').textContent = state.roomId || '------';
+  $('sharePveRoomBtn').classList.toggle('hidden', !state.roomId);
+  $('startPve').classList.toggle('hidden', !pveIsHost);
+  if (state.status === 'waiting') {
+    const names = (state.players || []).map((player) => player.name).join('、');
+    $('pveOverlay').classList.remove('hidden');
+    $('pveOverlay').innerHTML = `<h2>PVE 房间</h2><p>${names || '等待玩家'}${pveIsHost ? '。点击“开始 PVE”开始游戏。' : '。等待房主开始游戏。'}</p>`;
+  }
+});
+socket.on('pve_room_error', ({ message }) => showError(message));
+socket.on('pve_room_notice', ({ message }) => { $('topStatus').textContent = message; });
+socket.on('pve_room_closed', ({ message }) => {
+  showError(message);
+  pve = null;
+  pveRoom = null;
+  pveIsHost = false;
+  $('pveRoomIdLabel').textContent = '------';
+});
+socket.on('pve_game_started', ({ playerCount }) => {
+  $('pveOverlay').classList.add('hidden');
+  $('topStatus').textContent = 'PVE 对战中';
+  if (pveIsHost) startPve(playerCount);
+  else pve = null;
+});
+socket.on('pve_input', ({ keys: remoteKeys } = {}) => {
+  if (pveIsHost) pveRemoteKeys = remoteKeys || {};
+});
+socket.on('pve_state', (state) => {
+  if (pveIsHost) return;
+  applyPveState(state);
+});
+
 function renderPvpPlayers() {
   $('pvpPlayers').innerHTML = pvpPlayers.map((player) => `
     <div class="player-row">
@@ -177,14 +254,59 @@ function renderPvpPlayers() {
   `).join('');
 }
 
+function pveSnapshot(now) {
+  return {
+    gameOver: Boolean(pve?.over),
+    level: pve?.level || 1,
+    score: pve?.score || 0,
+    baseAlive: Boolean(pve?.base?.alive),
+    base: pve?.base,
+    grid: pve?.grid,
+    players: (pve?.players || []).map(({ id, name, color, x, y, facing, hp, alive, hidden }) => ({
+      id, name, color, x, y, facing, hp, alive, hidden
+    })),
+    enemies: (pve?.enemies || []).map(({ id, name, color, x, y, facing, hp, alive, hidden, type }) => ({
+      id, name, color, x, y, facing, hp, alive, hidden, type
+    })),
+    bullets: (pve?.bullets || []).map(({ ownerId, x, y, dx, dy }) => ({ ownerId, x, y, dx, dy })),
+    items: (pve?.items || []).map(({ type, icon, name, x, y, expiresAt }) => ({
+      type, icon, name, x, y, remaining: Math.max(0, expiresAt - now)
+    })),
+    explosions: (pve?.explosions || []).map(({ x, y, type, t }) => ({ x, y, type, age: Math.max(0, now - t) })),
+    killed: pve?.killed || 0,
+    levelKilled: pve?.levelKilled || 0,
+    totalEnemies: pve?.totalEnemies || 0,
+    playerCount: pve?.playerCount || 1
+  };
+}
+
+function applyPveState(state) {
+  const now = performance.now() / 1000;
+  pve = {
+    ...state,
+    over: Boolean(state.gameOver),
+    base: state.base || { x: 7, y: 13, alive: Boolean(state.baseAlive) },
+    players: (state.players || []).map((tank) => ({ ...tank, enemy: false, effects: {} })),
+    enemies: (state.enemies || []).map((tank) => ({ ...tank, enemy: true, effects: {} })),
+    bullets: state.bullets || [],
+    items: (state.items || []).map((item) => ({ ...item, expiresAt: now + (item.remaining || 0) })),
+    explosions: (state.explosions || []).map((item) => ({ ...item, t: now - (item.age || 0) }))
+  };
+  updatePveHud();
+  if (state.gameOver) {
+    $('pveOverlay').classList.remove('hidden');
+    $('pveOverlay').innerHTML = '<h2>PVE 游戏结束</h2><p>等待房主重新开始或返回大厅。</p>';
+  }
+}
+
 function startPve(count) {
   const grid = generateMap();
   const base = { x: 7, y: 13, alive: true };
   pve = {
     grid,
     players: [
-      makeTank('p1', '玩家1', '#d94f45', 5 * TILE + TILE / 2, 13 * TILE + TILE / 2, 'up', false),
-      ...(count === 2 ? [makeTank('p2', '玩家2', '#4488d9', 9 * TILE + TILE / 2, 13 * TILE + TILE / 2, 'up', false)] : [])
+      makeTank(pveRoom?.players?.[0]?.id || 'p1', pveRoom?.players?.[0]?.name || '玩家1', '#d94f45', 5 * TILE + TILE / 2, 13 * TILE + TILE / 2, 'up', false),
+      ...(count === 2 ? [makeTank(pveRoom?.players?.[1]?.id || 'p2', pveRoom?.players?.[1]?.name || '玩家2', '#4488d9', 9 * TILE + TILE / 2, 13 * TILE + TILE / 2, 'up', false)] : [])
     ],
     enemies: [],
     bullets: [],
@@ -469,8 +591,11 @@ function updatePve(dt, now) {
   if (keys.has('Space')) tankShoot(p1, now);
   const p2 = pve.players[1];
   if (p2) {
-    moveTank(p2, (keys.has('ArrowRight') ? 1 : 0) - (keys.has('ArrowLeft') ? 1 : 0), (keys.has('ArrowDown') ? 1 : 0) - (keys.has('ArrowUp') ? 1 : 0), dt, now);
-    if (keys.has('Enter')) tankShoot(p2, now);
+    const p2Keys = pveRoom?.players?.length === 2 ? pveRemoteKeys : {
+      up: keys.has('ArrowUp'), down: keys.has('ArrowDown'), left: keys.has('ArrowLeft'), right: keys.has('ArrowRight'), shoot: keys.has('Enter')
+    };
+    moveTank(p2, (p2Keys.right ? 1 : 0) - (p2Keys.left ? 1 : 0), (p2Keys.down ? 1 : 0) - (p2Keys.up ? 1 : 0), dt, now);
+    if (p2Keys.shoot) tankShoot(p2, now);
   }
   spawnEnemy(now);
   for (const enemy of pve.enemies) if (enemy.alive) updateEnemyAI(enemy, dt, now);
@@ -710,7 +835,7 @@ function drawPve() {
   for (const tank of pve.players) drawTank(pveCtx, tank, true, tank.hidden ? 0.3 : 1);
   for (const tank of pve.enemies) if (!tank.hidden) drawTank(pveCtx, tank, false);
   drawBullets(pveCtx, pve.bullets);
-  drawExplosions(pveCtx, pve.explosions);
+  drawExplosions(pveCtx, pve.explosions.map((item) => ({ ...item, age: item.age ?? performance.now() / 1000 - item.t })));
   pveCtx.save();
   pveCtx.globalAlpha = 0.78;
   for (let y = 0; y < GRID; y += 1) {
@@ -731,7 +856,18 @@ function frame(nowMs) {
     socket.emit('player_input', { keys: pvpKeys() });
     lastInputSent = nowMs;
   }
-  updatePve(dt, now);
+  if (view === 'pve' && pveRoom?.status === 'playing') {
+    if (pveIsHost) {
+      updatePve(dt, now);
+      if (nowMs - lastPveStateSent >= 50) {
+        socket.emit('pve_state', pveSnapshot(now));
+        lastPveStateSent = nowMs;
+      }
+    } else if (nowMs - lastInputSent > 33) {
+      socket.emit('pve_input', { keys: pvpKeys() });
+      lastInputSent = nowMs;
+    }
+  }
   drawPvp();
   drawPve();
   requestAnimationFrame(frame);
