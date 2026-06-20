@@ -1,21 +1,52 @@
-# Tank Battle
+# 坦克大战 🎮
 
-Authoritative two-player multiplayer tank battle game built with Node.js, Express, Socket.io, and vanilla JavaScript Canvas.
+经典坦克大战网页版，支持 **PVP 在线对战** 和 **PVE 合作闯关**。
 
-## Run
+## 技术栈
+
+- **后端：** Node.js + Express + Socket.io
+- **前端：** HTML5 Canvas + 原生 JavaScript
+- **通信：** WebSocket（Socket.io）实时同步
+
+## 快速开始
 
 ```sh
 npm install
-npm start
+npm start        # 默认端口 3001
 ```
 
-The server listens on `PORT` from `.env` or the environment, defaulting to `3000`.
+打开 `http://localhost:3001` 即可游玩。
 
-## Play
+## 游戏模式
 
-Open `http://localhost:3000` in two browser windows or on two devices. One player creates a room and shares the six-digit room ID; the second player joins that room. The game starts automatically after both players are present.
+### PVP 模式（多人对战）
+- 创建 6 位房间号邀请好友加入（最多 4 人）
+- 支持有道具/无道具模式切换
+- 最后存活的玩家获胜
 
-- Player 1: WASD to move, Space to shoot
-- Player 2: Arrow keys to move, Enter to shoot
+### PVE 模式（合作闯关）
+- 创建 PVE 房间邀请好友（最多 2 人）
+- 保护老家、消灭敌人、闯关递进
+- 主机中继模式：房主运行完整游戏，队友同步参与
 
-Battle records are stored in `data/records.json`.
+## 操作控制
+
+| 操作 | 玩家 1 | 玩家 2 |
+|------|--------|--------|
+| 移动 | W/A/S/D | ↑/←/↓/→ |
+| 射击 | 空格 | 回车 |
+
+## 道具一览
+
+| 道具 | 效果 |
+|------|------|
+| ⚡ 坦克加速 | 移动速度提升 1.5 倍，持续 8 秒 |
+| 🚀 子弹加速 | 子弹速度翻倍，持续 8 秒 |
+| 🔫 子弹连发 | 一次发射 3 发子弹，持续 8 秒 |
+| 💥 穿甲弹 | 子弹可打穿钢铁，持续 10 秒 |
+| ⏸️ 暂停敌人 | 所有敌方暂停 3 秒 |
+| ❤️ 加一条命 | 立即增加 1 点生命 |
+| ⭐ 无敌 | 5 秒内不受伤害 |
+| 🌟 增加积分 | PVE 专用，加 500 分 |
+| 🛡️ 钢板强化 | PVE 老家变钢铁 |
+| 🏰 加层保护 | PVE 老家加砖块 |
