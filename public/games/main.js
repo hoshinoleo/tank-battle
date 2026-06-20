@@ -404,10 +404,12 @@ function updateEnemyAI(enemy, dt, now) {
   enemy.aiTimer -= dt;
   if (enemy.aiTimer <= 0) {
     enemy.aiTimer = 0.55 + Math.random() * 0.7;
-    const target = pve.players.find((player) => player.alive && !player.hidden) || { x: 7 * TILE + TILE / 2, y: 13 * TILE + TILE / 2 };
-    const horizontal = Math.abs(target.x - enemy.x) > Math.abs(target.y - enemy.y);
-    enemy.intent = horizontal ? { mx: Math.sign(target.x - enemy.x), my: 0 } : { mx: 0, my: Math.sign(target.y - enemy.y) };
-    if (Math.random() < 0.28) enemy.intent = [{ mx: 1, my: 0 }, { mx: -1, my: 0 }, { mx: 0, my: 1 }, { mx: 0, my: -1 }][Math.floor(Math.random() * 4)];
+    const target = pve.players.find((player) => player.alive && !player.hidden);
+    if (target) {
+      const horizontal = Math.abs(target.x - enemy.x) > Math.abs(target.y - enemy.y);
+      enemy.intent = horizontal ? { mx: Math.sign(target.x - enemy.x), my: 0 } : { mx: 0, my: Math.sign(target.y - enemy.y) };
+    }
+    if (!target || Math.random() < 0.28) enemy.intent = [{ mx: 1, my: 0 }, { mx: -1, my: 0 }, { mx: 0, my: 1 }, { mx: 0, my: -1 }][Math.floor(Math.random() * 4)];
   }
   moveTank(enemy, enemy.intent?.mx || 0, enemy.intent?.my || 0, dt, now);
   if (Math.random() < 0.025 || Math.abs(enemy.x - (7 * TILE + TILE / 2)) < 30) tankShoot(enemy, now);
@@ -561,11 +563,11 @@ function drawGround(ctx) {
   }
 }
 
-function drawTank(ctx, tank, local = false) {
+function drawTank(ctx, tank, local = false, visibilityAlpha = 1) {
   if (!tank.alive) return;
   ctx.save();
   ctx.translate(tank.x, tank.y);
-  ctx.globalAlpha = tank.invulnerable || effectActive(tank, 'shield', performance.now() / 1000) ? 0.68 : 1;
+  ctx.globalAlpha = visibilityAlpha * (tank.invulnerable || effectActive(tank, 'shield', performance.now() / 1000) ? 0.68 : 1);
   ctx.fillStyle = tank.color;
   ctx.strokeStyle = local ? '#ffffff' : '#171914';
   ctx.lineWidth = local ? 3 : 2;
@@ -579,10 +581,13 @@ function drawTank(ctx, tank, local = false) {
   ctx.fillRect(0, -5, 26, 10);
   ctx.restore();
   if (tank.name) {
+    ctx.save();
+    ctx.globalAlpha = visibilityAlpha;
     ctx.fillStyle = '#f4ecd0';
     ctx.font = '12px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(tank.name, tank.x, tank.y - 25);
+    ctx.restore();
   }
 }
 
@@ -639,13 +644,12 @@ function drawPve() {
   for (let y = 0; y < GRID; y += 1) {
     for (let x = 0; x < GRID; x += 1) {
       const tile = pve.grid[y][x];
-      if (tile === 'empty') continue;
+      if (tile === 'empty' || tile === 'bush') continue;
       const px = x * TILE;
       const py = y * TILE;
       if (tile === 'brick') pveCtx.fillStyle = '#8f5c34';
       if (tile === 'steel') pveCtx.fillStyle = '#a8acaa';
       if (tile === 'water') pveCtx.fillStyle = '#276f9f';
-      if (tile === 'bush') pveCtx.fillStyle = '#477842';
       if (tile === 'base') pveCtx.fillStyle = pve.base.alive ? '#d9c66b' : '#58302c';
       pveCtx.fillRect(px + 2, py + 2, TILE - 4, TILE - 4);
       if (tile === 'base') {
@@ -657,9 +661,20 @@ function drawPve() {
     }
   }
   drawPowerups(pveCtx, pve.items.map((item) => ({ ...item, remaining: item.expiresAt - performance.now() / 1000 })));
-  for (const tank of [...pve.players, ...pve.enemies]) drawTank(pveCtx, tank, !tank.enemy);
+  for (const tank of pve.players) drawTank(pveCtx, tank, true, tank.hidden ? 0.3 : 1);
+  for (const tank of pve.enemies) if (!tank.hidden) drawTank(pveCtx, tank, false);
   drawBullets(pveCtx, pve.bullets);
   drawExplosions(pveCtx, pve.explosions);
+  pveCtx.save();
+  pveCtx.globalAlpha = 0.78;
+  for (let y = 0; y < GRID; y += 1) {
+    for (let x = 0; x < GRID; x += 1) {
+      if (pve.grid[y][x] !== 'bush') continue;
+      pveCtx.fillStyle = '#477842';
+      pveCtx.fillRect(x * TILE + 2, y * TILE + 2, TILE - 4, TILE - 4);
+    }
+  }
+  pveCtx.restore();
 }
 
 function frame(nowMs) {
@@ -682,3 +697,4 @@ drawPve();
 requestAnimationFrame(frame);
 
 console.log('[功能一] PVE 关卡制已加载：8 关起动态提升难度。');
+console.log('[功能二] 草丛隐身与顶层遮挡渲染已加载。');
