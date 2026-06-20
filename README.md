@@ -2,8 +2,6 @@
 
 经典坦克大战网页版，支持 **PVP 在线对战** 和 **PVE 合作闯关**。
 
-在线体验：https://tank.shijingyu.cn
-
 ## 技术栈
 
 - **后端：** Node.js + Express + Socket.io
