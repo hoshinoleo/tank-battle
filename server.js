@@ -99,6 +99,17 @@ function createPveRoom(socket, name) {
   socket.join(`pve:${id}`);
   socket.emit('pve_room_created', { roomId: id });
   emitPveRoom(room);
+  return id;
+}
+
+function checkRoom(id) {
+  const roomId = String(id || '').trim();
+  if (!/^\d{6}$/.test(roomId)) {
+    return { ok: false, type: null, roomId, message: '房间号必须是 6 位数字。' };
+  }
+  if (rooms.has(roomId)) return { ok: true, type: 'pvp', roomId };
+  if (pveRooms.has(roomId)) return { ok: true, type: 'pve', roomId };
+  return { ok: false, type: null, roomId, message: '房间不存在。' };
 }
 
 function joinPveRoom(socket, id, name) {
@@ -619,7 +630,25 @@ io.on('connection', (socket) => {
       shoot: Boolean(keys?.shoot)
     });
   });
-  socket.on('create_pve_room', ({ playerName } = {}) => createPveRoom(socket, playerName));
+  socket.on('check_room', ({ roomId } = {}, acknowledge) => {
+    const result = checkRoom(roomId);
+    console.info(`[room] check ${result.roomId || '<empty>'}: ${result.type || 'not-found'}`);
+    if (typeof acknowledge === 'function') acknowledge(result);
+    else socket.emit('room_checked', result);
+  });
+  socket.on('create_pve_room', ({ playerName } = {}, acknowledge) => {
+    console.info(`[pve] create requested by ${socket.id}`);
+    try {
+      const id = createPveRoom(socket, playerName);
+      console.info(`[pve] room ${id} created by ${socket.id}`);
+      if (typeof acknowledge === 'function') acknowledge({ ok: true, roomId: id });
+    } catch (error) {
+      console.error(`[pve] create failed for ${socket.id}`, error);
+      const message = 'PVE 房间创建失败，请稍后重试。';
+      socket.emit('pve_room_error', { message });
+      if (typeof acknowledge === 'function') acknowledge({ ok: false, message });
+    }
+  });
   socket.on('join_pve_room', ({ roomId: id, playerName } = {}) => joinPveRoom(socket, id, playerName));
   socket.on('leave_pve_room', () => removePvePlayer(socket));
   socket.on('start_pve_game', () => {

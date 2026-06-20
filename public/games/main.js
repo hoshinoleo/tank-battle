@@ -126,7 +126,7 @@ $('quickJoin').addEventListener('click', () => { showView('pvp'); joinPvp($('qui
 $('startPvp').addEventListener('click', () => socket.emit('start_pvp'));
 $('shareRoomBtn').addEventListener('click', () => copyRoomText(`加入我的坦克大战房间：${$('roomIdLabel').textContent}`));
 $('pvpPowerups').addEventListener('change', () => socket.emit('set_room_options', { powerupsEnabled: $('pvpPowerups').checked }));
-$('createPveRoom').addEventListener('click', () => socket.emit('create_pve_room', { playerName: playerName() }));
+$('createPveRoom').addEventListener('click', createPveRoom);
 $('joinPveRoom').addEventListener('click', () => joinPve($('joinPveRoomId').value));
 $('startPve').addEventListener('click', () => socket.emit('start_pve_game'));
 $('sharePveRoomBtn').addEventListener('click', () => copyRoomText(`加入我的坦克大战 PVE 房间：${pveRoom?.roomId || ''}`));
@@ -154,13 +154,64 @@ function joinPvp(id) {
   socket.emit('join_room', { roomId, playerName: playerName() });
 }
 
+function createPveRoom() {
+  const button = $('createPveRoom');
+  button.disabled = true;
+  $('topStatus').textContent = '正在创建 PVE 房间…';
+  console.info('[PVE] create_pve_room: sending request');
+  socket.timeout(5000).emit('create_pve_room', { playerName: playerName() }, (error, result) => {
+    button.disabled = false;
+    if (error) {
+      console.error('[PVE] create_pve_room: timed out', error);
+      showError('PVE 房间创建超时，请检查网络后重试。');
+      return;
+    }
+    if (!result?.ok) {
+      console.error('[PVE] create_pve_room: rejected', result);
+      showError(result?.message || 'PVE 房间创建失败，请稍后重试。');
+      return;
+    }
+    console.info(`[PVE] create_pve_room: server created ${result.roomId}`);
+    $('topStatus').textContent = `PVE 房间 ${result.roomId} 已创建`;
+  });
+}
+
 function joinPve(id) {
   const roomId = String(id || '').trim();
   if (!/^\d{6}$/.test(roomId)) {
     showError('房间号格式错误，请输入 6 位数字。');
     return;
   }
-  socket.emit('join_pve_room', { roomId, playerName: playerName() });
+  const button = $('joinPveRoom');
+  button.disabled = true;
+  $('topStatus').textContent = `正在查询房间 ${roomId}…`;
+  console.info(`[room] check_room: querying ${roomId} from PVE view`);
+  socket.timeout(5000).emit('check_room', { roomId }, (error, result) => {
+    button.disabled = false;
+    if (error) {
+      console.error(`[room] check_room: timed out for ${roomId}`, error);
+      showError('房间查询超时，请检查网络后重试。');
+      return;
+    }
+    console.info(`[room] check_room: ${roomId} is ${result?.type || 'not-found'}`);
+    if (!result?.ok) {
+      showError(result?.message || '房间不存在。');
+      return;
+    }
+    if (result.type === 'pvp') {
+      console.info(`[room] auto-switching to PVP room ${roomId}`);
+      $('joinRoomId').value = roomId;
+      showView('pvp');
+      joinPvp(roomId);
+      return;
+    }
+    if (result.type === 'pve') {
+      console.info(`[PVE] join_pve_room: sending request for ${roomId}`);
+      socket.emit('join_pve_room', { roomId, playerName: playerName() });
+      return;
+    }
+    showError('房间类型无法识别。');
+  });
 }
 
 async function copyRoomText(text) {
@@ -224,6 +275,8 @@ socket.on('pvp_game_over', ({ winnerName, reason, players }) => {
 });
 
 socket.on('pve_room_created', ({ roomId }) => {
+  console.info(`[PVE] pve_room_created: received ${roomId}`);
+  $('createPveRoom').disabled = false;
   $('pveRoomIdLabel').textContent = roomId;
   $('sharePveRoomBtn').classList.remove('hidden');
   $('pveOverlay').classList.remove('hidden');
@@ -241,7 +294,12 @@ socket.on('pve_room_state', (state) => {
     $('pveOverlay').innerHTML = `<h2>PVE 房间</h2><p>${names || '等待玩家'}${pveIsHost ? '。点击“开始 PVE”开始游戏。' : '。等待房主开始游戏。'}</p>`;
   }
 });
-socket.on('pve_room_error', ({ message }) => showError(message));
+socket.on('pve_room_error', ({ message }) => {
+  console.error('[PVE] pve_room_error:', message);
+  $('createPveRoom').disabled = false;
+  $('joinPveRoom').disabled = false;
+  showError(message);
+});
 socket.on('pve_room_notice', ({ message }) => { $('topStatus').textContent = message; });
 socket.on('pve_room_closed', ({ message }) => {
   showError(message);
