@@ -281,6 +281,8 @@ function makeTank(id, name, color, x, y, facing, enemy, type = null) {
     effects: {},
     frozenUntil: 0,
     aiTimer: 0,
+    aiTarget: 'player',
+    aiTargetUntil: 0,
     hidden: false
   };
 }
@@ -401,18 +403,32 @@ function spawnEnemy(now) {
 }
 
 function updateEnemyAI(enemy, dt, now) {
+  if (!pve.base.alive) {
+    enemy.aiTarget = 'player';
+    enemy.aiTargetUntil = now + 3;
+  } else if (now >= enemy.aiTargetUntil) {
+    enemy.aiTarget = Math.random() < 0.3 ? 'base' : 'player';
+    enemy.aiTargetUntil = now + 2.5 + Math.random() * 3.5;
+  }
+
   enemy.aiTimer -= dt;
   if (enemy.aiTimer <= 0) {
     enemy.aiTimer = 0.55 + Math.random() * 0.7;
-    const target = pve.players.find((player) => player.alive && !player.hidden);
+    const target = enemy.aiTarget === 'base' && pve.base.alive
+      ? { x: pve.base.x * TILE + TILE / 2, y: pve.base.y * TILE + TILE / 2 }
+      : pve.players.find((player) => player.alive && !player.hidden);
     if (target) {
       const horizontal = Math.abs(target.x - enemy.x) > Math.abs(target.y - enemy.y);
       enemy.intent = horizontal ? { mx: Math.sign(target.x - enemy.x), my: 0 } : { mx: 0, my: Math.sign(target.y - enemy.y) };
     }
-    if (!target || Math.random() < 0.28) enemy.intent = [{ mx: 1, my: 0 }, { mx: -1, my: 0 }, { mx: 0, my: 1 }, { mx: 0, my: -1 }][Math.floor(Math.random() * 4)];
+    if (!target || (enemy.aiTarget !== 'base' && Math.random() < 0.28)) enemy.intent = [{ mx: 1, my: 0 }, { mx: -1, my: 0 }, { mx: 0, my: 1 }, { mx: 0, my: -1 }][Math.floor(Math.random() * 4)];
   }
   moveTank(enemy, enemy.intent?.mx || 0, enemy.intent?.my || 0, dt, now);
-  if (Math.random() < 0.025 || Math.abs(enemy.x - (7 * TILE + TILE / 2)) < 30) tankShoot(enemy, now);
+  const baseX = pve.base.x * TILE + TILE / 2;
+  const baseY = pve.base.y * TILE + TILE / 2;
+  const baseDistance = Math.hypot(enemy.x - baseX, enemy.y - baseY);
+  const attackingBase = enemy.aiTarget === 'base' && pve.base.alive;
+  if ((attackingBase && baseDistance < TILE * 6 && Math.random() < 0.08) || (!attackingBase && Math.random() < 0.025)) tankShoot(enemy, now);
 }
 
 function updatePve(dt, now) {
@@ -698,3 +714,4 @@ requestAnimationFrame(frame);
 
 console.log('[功能一] PVE 关卡制已加载：8 关起动态提升难度。');
 console.log('[功能二] 草丛隐身与顶层遮挡渲染已加载。');
+console.log('[功能三] AI 已加载 30% 老家目标与动态切换行为。');
