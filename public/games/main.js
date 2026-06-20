@@ -317,7 +317,14 @@ function applyPveState(state) {
   if (state.gameOver) {
     $('pveOverlay').classList.remove('hidden');
     $('pveOverlay').innerHTML = '<h2>PVE 游戏结束</h2><p>等待房主重新开始或返回大厅。</p>';
+    showPveGameOver(state);
   }
+}
+
+function showPveGameOver(state, reason = '') {
+  const playerRows = (state.players || []).map((player, index) => `<p>玩家${index + 1}（${player.name}）击杀：${player.kills || 0}</p>`).join('');
+  const summary = `${reason ? `<p>${reason}</p>` : ''}<p>到达第 ${state.level || 1} 关</p><p>本局总积分：${state.score || 0}</p>${playerRows}`;
+  showModal('PVE 游戏结束', summary, true, pveIsHost ? () => socket.emit('start_pve_game') : null);
 }
 
 function startPve(count) {
@@ -731,13 +738,10 @@ function endPve(reason) {
   if (!pve || pve.over) return;
   pve.over = true;
   pve.result = '游戏结束';
-  const reachedLevel = pve.level;
-  const finalScore = pve.score;
-  const restartPlayerCount = pve.playerCount;
-  const summary = `<p>${reason}</p><p>到达第 ${reachedLevel} 关</p><p>本局总积分：${finalScore}</p>`;
+  const summary = `<p>${reason}</p><p>到达第 ${pve.level} 关</p><p>本局总积分：${pve.score}</p>`;
   $('pveOverlay').classList.remove('hidden');
   $('pveOverlay').innerHTML = `<h2>游戏结束</h2>${summary}`;
-  showModal('PVE 游戏结束', summary, true, () => startPve(restartPlayerCount));
+  showPveGameOver(pve, reason);
 }
 
 function updatePveHud() {
