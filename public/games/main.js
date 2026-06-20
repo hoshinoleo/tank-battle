@@ -268,8 +268,8 @@ function pveSnapshot(now) {
     baseAlive: Boolean(pve?.base?.alive),
     base: pve?.base,
     grid: pve?.grid,
-    players: (pve?.players || []).map(({ id, name, color, x, y, facing, hp, alive, hidden }) => ({
-      id, name, color, x, y, facing, hp, alive, hidden
+    players: (pve?.players || []).map(({ id, name, color, x, y, facing, hp, alive, kills, score, hidden }) => ({
+      id, name, color, x, y, facing, hp, alive, kills, score, hidden
     })),
     enemies: (pve?.enemies || []).map(({ id, name, color, x, y, facing, hp, alive, hidden, type }) => ({
       id, name, color, x, y, facing, hp, alive, hidden, type
@@ -411,6 +411,8 @@ function makeTank(id, name, color, x, y, facing, enemy, type = null) {
     aiTimer: 0,
     aiTarget: 'player',
     aiTargetUntil: 0,
+    kills: 0,
+    score: 0,
     hidden: false
   };
 }
@@ -665,6 +667,11 @@ function damagePveTank(tank, bullet, now) {
     pve.killed += 1;
     pve.levelKilled += 1;
     pve.score += tank.type.score;
+    const killer = pve.players.find((player) => player.id === bullet.ownerId);
+    if (killer) {
+      killer.kills += 1;
+      killer.score += tank.type.score;
+    }
   }
 }
 
@@ -694,7 +701,10 @@ function updatePvePowerups(now) {
 
 function applyPvePowerup(player, item, now) {
   if (item.type === 'life') player.hp += 1;
-  else if (item.type === 'score') pve.score += 500;
+  else if (item.type === 'score') {
+    pve.score += 500;
+    player.score += 500;
+  }
   else if (item.type === 'steelBase') protectBase('steel');
   else if (item.type === 'doubleBase') protectBase('double');
   else if (item.type === 'freeze') pve.enemies.forEach((enemy) => { enemy.frozenUntil = now + 3; });
@@ -719,9 +729,9 @@ function updatePveHud() {
   if (!pve) return;
   $('pveScore').textContent = `第 ${pve.level} 关 · 总积分：${pve.score}`;
   $('pveStats').innerHTML = `
+    ${pve.players.map((player, index) => `<div>【玩家${index + 1}】${'♥'.repeat(Math.max(0, player.hp)) || '阵亡'}　击杀：${player.kills || 0}　得分：${player.score || 0}</div>`).join('')}
     <div>本关敌人：${pve.levelKilled}/${pve.totalEnemies}</div>
     <div>场上敌人：${pve.enemies.filter((e) => e.alive).length}</div>
-    <div>玩家血量：${pve.players.map((p) => `${p.name} ${'♥'.repeat(Math.max(0, p.hp)) || '阵亡'}`).join('　')}</div>
     <div>地图：随机基地防守</div>
   `;
 }
