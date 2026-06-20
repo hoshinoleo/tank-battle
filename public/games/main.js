@@ -12,16 +12,16 @@ const pvpCtx = pvpCanvas.getContext('2d');
 const pveCtx = pveCanvas.getContext('2d');
 
 const powerups = [
-  { type: 'speed', name: '坦克加速', icon: '闪', desc: '移动速度提升 1.5 倍，持续 8 秒。' },
-  { type: 'bulletSpeed', name: '子弹加速', icon: '箭', desc: '子弹速度翻倍，持续 8 秒。' },
-  { type: 'triple', name: '子弹连发', icon: '枪', desc: '一次连续发射 3 发子弹，持续 8 秒。' },
-  { type: 'pierce', name: '穿甲弹', icon: '爆', desc: '子弹可以打穿钢铁，持续 10 秒。' },
-  { type: 'freeze', name: '暂停敌人', icon: '停', desc: '除自己外所有敌方坦克暂停行动 3 秒。' },
-  { type: 'life', name: '加一条命', icon: '心', desc: '立即增加 1 点生命。' },
-  { type: 'shield', name: '无敌', icon: '星', desc: '5 秒内不受任何伤害。' },
-  { type: 'score', name: '增加积分', icon: '分', desc: 'PVE 专用，立即增加 500 分。' },
-  { type: 'steelBase', name: '钢板强化', icon: '钢', desc: '老家周围砖块变成钢铁。' },
-  { type: 'doubleBase', name: '加层保护', icon: '堡', desc: '老家外侧增加一圈砖块保护。' }
+  { type: 'speed', name: '坦克加速', icon: '⚡', desc: '移动速度提升 1.5 倍，持续 8 秒。' },
+  { type: 'bulletSpeed', name: '子弹加速', icon: '🚀', desc: '子弹速度翻倍，持续 8 秒。' },
+  { type: 'triple', name: '子弹连发', icon: '🔫', desc: '一次连续发射 3 发子弹，持续 8 秒。' },
+  { type: 'pierce', name: '穿甲弹', icon: '💥', desc: '子弹可以打穿钢铁，持续 10 秒。' },
+  { type: 'freeze', name: '暂停敌人', icon: '⏸️', desc: '除自己外所有敌方坦克暂停行动 3 秒。' },
+  { type: 'life', name: '加一条命', icon: '❤️', desc: '立即增加 1 点生命。' },
+  { type: 'shield', name: '无敌', icon: '⭐', desc: '5 秒内不受任何伤害。' },
+  { type: 'score', name: '增加积分', icon: '🌟', desc: 'PVE 专用，立即增加 500 分。' },
+  { type: 'steelBase', name: '钢板强化', icon: '🛡️', desc: '老家周围砖块变成钢铁。' },
+  { type: 'doubleBase', name: '加层保护', icon: '🏰', desc: '老家外侧增加一圈砖块保护。' }
 ];
 
 const enemyTypes = [
@@ -110,6 +110,9 @@ $('returnLobbyTop').addEventListener('click', returnLobby);
 $('leaveRoom').addEventListener('click', returnLobby);
 $('leavePve').addEventListener('click', returnLobby);
 $('modalClose').addEventListener('click', hideModal);
+$('modal').addEventListener('click', (event) => {
+  if (event.target === $('modal')) hideModal();
+});
 $('modalLobby').addEventListener('click', () => { hideModal(); returnLobby(); });
 $('modalAgain').addEventListener('click', () => {
   hideModal();
@@ -126,9 +129,12 @@ $('createPveRoom').addEventListener('click', () => socket.emit('create_pve_room'
 $('joinPveRoom').addEventListener('click', () => joinPve($('joinPveRoomId').value));
 $('startPve').addEventListener('click', () => socket.emit('start_pve_game'));
 $('sharePveRoomBtn').addEventListener('click', () => copyRoomText(`加入我的坦克大战 PVE 房间：${pveRoom?.roomId || ''}`));
-$('powerupBook').addEventListener('click', () => {
-  showModal('道具图鉴', `<div class="book-grid">${powerups.map((item) => `<div><b>${item.icon} ${item.name}</b><span>${item.desc}</span></div>`).join('')}</div>`);
-});
+$('powerupBook').addEventListener('click', showPowerupBook);
+$('pvpPowerupBook').addEventListener('click', showPowerupBook);
+
+function showPowerupBook() {
+  showModal('道具图鉴', `<div class="book-grid">${powerups.map((item) => `<div><span class="book-icon">${item.icon}</span><b>${item.name}</b><span>${item.desc}</span></div>`).join('')}</div>`);
+}
 
 function joinPvp(id) {
   const roomId = String(id || '').trim();

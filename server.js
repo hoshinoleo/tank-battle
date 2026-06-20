@@ -28,13 +28,13 @@ const SPAWNS = [
   { x: WORLD - 64, y: WORLD - 64, facing: 'up' }
 ];
 const POWERUPS = [
-  { type: 'speed', name: '坦克加速', icon: '闪', ttl: 8 },
-  { type: 'bulletSpeed', name: '子弹加速', icon: '箭', ttl: 8 },
-  { type: 'triple', name: '子弹连发', icon: '枪', ttl: 8 },
-  { type: 'pierce', name: '穿甲弹', icon: '爆', ttl: 10 },
-  { type: 'freeze', name: '暂停敌人', icon: '停', ttl: 3 },
-  { type: 'life', name: '加一条命', icon: '心' },
-  { type: 'shield', name: '无敌', icon: '星', ttl: 5 }
+  { type: 'speed', name: '坦克加速', icon: '⚡', ttl: 8 },
+  { type: 'bulletSpeed', name: '子弹加速', icon: '🚀', ttl: 8 },
+  { type: 'triple', name: '子弹连发', icon: '🔫', ttl: 8 },
+  { type: 'pierce', name: '穿甲弹', icon: '💥', ttl: 10 },
+  { type: 'freeze', name: '暂停敌人', icon: '⏸️', ttl: 3 },
+  { type: 'life', name: '加一条命', icon: '❤️' },
+  { type: 'shield', name: '无敌', icon: '⭐', ttl: 5 }
 ];
 
 const app = express();

@@ -363,6 +363,8 @@ canvas {
 
 .book-grid div {
   display: grid;
+  grid-template-columns: auto auto 1fr;
+  align-items: center;
   gap: 4px;
   padding: 10px;
   border: 1px solid var(--line);
@@ -372,6 +374,18 @@ canvas {
 
 .book-grid span {
   color: var(--muted);
+}
+
+.book-grid .book-icon {
+  min-width: 36px;
+  color: var(--text);
+  font-size: 24px;
+  text-align: center;
+  margin-right: 4px;
+}
+
+.book-grid b {
+  margin-right: 8px;
 }
 
 @media (max-width: 940px) {
