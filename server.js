@@ -553,6 +553,50 @@ function removePlayer(socket, silent = false) {
   emitRoom(room);
 }
 
+function normalizePveState(state) {
+  const list = (value, limit) => Array.isArray(value) ? value.slice(0, limit) : [];
+  const number = (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback;
+  const tank = (value, enemy = false) => ({
+    id: String(value?.id || ''),
+    name: cleanName(value?.name),
+    color: String(value?.color || '#888888').slice(0, 20),
+    x: number(value?.x),
+    y: number(value?.y),
+    facing: ['up', 'down', 'left', 'right'].includes(value?.facing) ? value.facing : 'up',
+    hp: number(value?.hp),
+    alive: Boolean(value?.alive),
+    ...(enemy ? { type: value?.type || null } : { kills: number(value?.kills), score: number(value?.score) }),
+    hidden: Boolean(value?.hidden)
+  });
+  return {
+    gameOver: Boolean(state?.gameOver),
+    level: Math.max(1, number(state?.level, 1)),
+    score: number(state?.score),
+    baseAlive: Boolean(state?.baseAlive),
+    players: list(state?.players, 2).map((value) => tank(value)),
+    enemies: list(state?.enemies, 40).map((value) => tank(value, true)),
+    bullets: list(state?.bullets, 300).map((value) => ({
+      ownerId: String(value?.ownerId || ''),
+      x: number(value?.x), y: number(value?.y), dx: number(value?.dx), dy: number(value?.dy)
+    })),
+    items: list(state?.items, 30).map((value) => ({
+      type: String(value?.type || ''), x: number(value?.x), y: number(value?.y), remaining: Math.max(0, number(value?.remaining))
+    })),
+    explosions: list(state?.explosions, 100).map((value) => ({
+      x: number(value?.x), y: number(value?.y), type: String(value?.type || ''), age: Math.max(0, number(value?.age))
+    })),
+    killed: number(state?.killed),
+    levelKilled: number(state?.levelKilled),
+    totalEnemies: number(state?.totalEnemies),
+    playerCount: Math.max(1, Math.min(2, number(state?.playerCount, 1))),
+    // The protocol's renderer extension: guests need the authoritative map layout.
+    grid: Array.isArray(state?.grid) ? state.grid.slice(0, 15).map((row) => Array.isArray(row) ? row.slice(0, 15) : []) : [],
+    base: state?.base && typeof state.base === 'object'
+      ? { x: number(state.base.x, 7), y: number(state.base.y, 13), alive: Boolean(state.base.alive) }
+      : { x: 7, y: 13, alive: Boolean(state?.baseAlive) }
+  };
+}
+
 io.on('connection', (socket) => {
   socket.on('create_room', ({ playerName, powerupsEnabled } = {}) => createRoom(socket, playerName, powerupsEnabled));
   socket.on('join_room', ({ roomId: id, playerName } = {}) => joinRoom(socket, id, playerName));
@@ -602,8 +646,9 @@ io.on('connection', (socket) => {
   socket.on('pve_state', (state = {}) => {
     const room = pveRooms.get(socketToPveRoom.get(socket.id));
     if (!room || room.status !== 'playing' || room.hostId !== socket.id) return;
-    socket.to(`pve:${room.id}`).emit('pve_state', state);
-    if (state.gameOver) {
+    const snapshot = normalizePveState(state);
+    socket.to(`pve:${room.id}`).emit('pve_state', snapshot);
+    if (snapshot.gameOver) {
       room.status = 'waiting';
       emitPveRoom(room);
     }

@@ -290,8 +290,8 @@ function pveSnapshot(now) {
       id, name, color, x, y, facing, hp, alive, hidden, type
     })),
     bullets: (pve?.bullets || []).map(({ ownerId, x, y, dx, dy }) => ({ ownerId, x, y, dx, dy })),
-    items: (pve?.items || []).map(({ type, icon, name, x, y, expiresAt }) => ({
-      type, icon, name, x, y, remaining: Math.max(0, expiresAt - now)
+    items: (pve?.items || []).map(({ type, x, y, expiresAt }) => ({
+      type, x, y, remaining: Math.max(0, expiresAt - now)
     })),
     explosions: (pve?.explosions || []).map(({ x, y, type, t }) => ({ x, y, type, age: Math.max(0, now - t) })),
     killed: pve?.killed || 0,
@@ -310,7 +310,10 @@ function applyPveState(state) {
     players: (state.players || []).map((tank) => ({ ...tank, enemy: false, effects: {} })),
     enemies: (state.enemies || []).map((tank) => ({ ...tank, enemy: true, effects: {} })),
     bullets: state.bullets || [],
-    items: (state.items || []).map((item) => ({ ...item, expiresAt: now + (item.remaining || 0) })),
+    items: (state.items || []).map((item) => {
+      const definition = powerups.find((powerup) => powerup.type === item.type) || {};
+      return { ...definition, ...item, expiresAt: now + (item.remaining || 0) };
+    }),
     explosions: (state.explosions || []).map((item) => ({ ...item, t: now - (item.age || 0) }))
   };
   updatePveHud();
