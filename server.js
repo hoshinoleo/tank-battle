@@ -560,7 +560,7 @@ io.on('connection', (socket) => {
   socket.on('leave_room', () => removePlayer(socket));
   socket.on('set_room_options', ({ powerupsEnabled } = {}) => {
     const room = rooms.get(socketToRoom.get(socket.id));
-    if (!room || room.hostId !== socket.id || room.status !== 'waiting') return;
+    if (!room || !room.players.some((player) => player.id === socket.id) || room.status !== 'waiting') return;
     room.powerupsEnabled = Boolean(powerupsEnabled);
     emitRoom(room);
   });
