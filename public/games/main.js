@@ -195,6 +195,7 @@ socket.on('room_state', (state) => {
   $('roomIdLabel').textContent = state.roomId || '------';
   $('shareRoomBtn').classList.toggle('hidden', !state.roomId);
   $('pvpPowerups').checked = Boolean(state.powerupsEnabled);
+  $('pvpPowerups').disabled = state.status === 'playing';
   renderPvpPlayers();
 });
 socket.on('room_error', ({ message }) => showError(message));
