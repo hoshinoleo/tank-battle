@@ -2,6 +2,8 @@
 
 经典坦克大战网页版，支持 **PVP 在线对战** 和 **PVE 合作闯关**。
 
+在线体验：https://tank.shijingyu.cn
+
 ## 技术栈
 
 - **后端：** Node.js + Express + Socket.io
@@ -11,11 +13,18 @@
 ## 快速开始
 
 ```sh
+# 1. 克隆仓库
+git clone https://github.com/hoshinoleo/tank-battle.git
+cd tank-battle
+
+# 2. 安装依赖
 npm install
-npm start        # 默认端口 3001
+
+# 3. 启动服务（默认端口 3001）
+npm start
 ```
 
-打开 `http://localhost:3001` 即可游玩。
+打开 **http://localhost:3001** 即可游玩。
 
 ## 游戏模式
 
