@@ -478,8 +478,8 @@ function updatePve(dt, now) {
   updatePvePowerups(now);
   maybeSpawnPvePowerup(now);
   pve.explosions = pve.explosions.filter((item) => now - item.t < 0.7);
-  if (!pve.base.alive) endPve('游戏结束', `老家被打爆了 — 到达第 ${pve.level} 关。`);
-  else if (pve.players.every((player) => !player.alive)) endPve('游戏结束', `所有玩家都被击败了 — 到达第 ${pve.level} 关。`);
+  if (!pve.base.alive) endPve('老家被打爆了。');
+  else if (pve.players.every((player) => !player.alive)) endPve('所有玩家都被击败了。');
   else if (pve.levelKilled >= pve.totalEnemies) completePveLevel(now);
   updatePveHud();
 }
@@ -571,13 +571,17 @@ function applyPvePowerup(player, item, now) {
   else player.effects[item.type] = now + (item.type === 'pierce' ? 10 : 8);
 }
 
-function endPve(result, text) {
+function endPve(reason) {
   if (!pve || pve.over) return;
   pve.over = true;
-  pve.result = result;
+  pve.result = '游戏结束';
+  const reachedLevel = pve.level;
+  const finalScore = pve.score;
+  const restartPlayerCount = pve.playerCount;
+  const summary = `<p>${reason}</p><p>到达第 ${reachedLevel} 关</p><p>本局总积分：${finalScore}</p>`;
   $('pveOverlay').classList.remove('hidden');
-  $('pveOverlay').innerHTML = `<h2>${result}</h2><p>${text}</p>`;
-  showModal(`PVE ${result}`, `<p>${text}</p><p>最终积分：${pve.score}</p>`, true, () => startPve($('pveTwoPlayers').checked ? 2 : 1));
+  $('pveOverlay').innerHTML = `<h2>游戏结束</h2>${summary}`;
+  showModal('PVE 游戏结束', summary, true, () => startPve(restartPlayerCount));
 }
 
 function updatePveHud() {
@@ -742,3 +746,4 @@ console.log('[功能一] PVE 关卡制已加载：8 关起动态提升难度。'
 console.log('[功能二] 草丛隐身与顶层遮挡渲染已加载。');
 console.log('[功能三] AI 已加载 30% 老家目标与动态切换行为。');
 console.log('[功能四] 四角出生区与通往战场中心的通道已保留。');
+console.log('[功能五] 游戏结束弹窗已显示到达关卡与本局总积分。');
