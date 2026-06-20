@@ -124,6 +124,7 @@ $('createRoom').addEventListener('click', () => {
 $('joinRoom').addEventListener('click', () => joinPvp($('joinRoomId').value));
 $('quickJoin').addEventListener('click', () => { showView('pvp'); joinPvp($('quickRoomId').value); });
 $('startPvp').addEventListener('click', () => socket.emit('start_pvp'));
+$('shareRoomBtn').addEventListener('click', () => copyRoomText(`加入我的坦克大战房间：${$('roomIdLabel').textContent}`));
 $('pvpPowerups').addEventListener('change', () => socket.emit('set_room_options', { powerupsEnabled: $('pvpPowerups').checked }));
 $('createPveRoom').addEventListener('click', () => socket.emit('create_pve_room', { playerName: playerName() }));
 $('joinPveRoom').addEventListener('click', () => joinPve($('joinPveRoomId').value));
@@ -172,6 +173,7 @@ function returnLobby() {
   pveRemoteKeys = {};
   pvpState = { status: 'idle', tanks: [], bullets: [], powerups: [], explosions: [] };
   $('roomIdLabel').textContent = '------';
+  $('shareRoomBtn').classList.add('hidden');
   $('pvpPlayers').innerHTML = '';
   $('pvpOverlay').classList.remove('hidden');
   $('pvpOverlay').innerHTML = '<h2>PVP 房间</h2><p>创建房间或输入房间号加入。房主手动开始，至少 2 人，最多 4 人。</p>';
@@ -184,12 +186,14 @@ function returnLobby() {
 
 socket.on('room_created', ({ roomId }) => {
   $('roomIdLabel').textContent = roomId;
+  $('shareRoomBtn').classList.remove('hidden');
   $('pvpOverlay').classList.remove('hidden');
   $('pvpOverlay').innerHTML = `<h2>房间已创建</h2><p>房间号：${roomId}。等待玩家加入后由房主点击开始游戏。</p>`;
 });
 socket.on('room_state', (state) => {
   pvpPlayers = state.players || [];
   $('roomIdLabel').textContent = state.roomId || '------';
+  $('shareRoomBtn').classList.toggle('hidden', !state.roomId);
   $('pvpPowerups').checked = Boolean(state.powerupsEnabled);
   renderPvpPlayers();
 });
