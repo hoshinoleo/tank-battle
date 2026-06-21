@@ -159,21 +159,13 @@ function createPveRoom() {
   button.disabled = true;
   $('topStatus').textContent = '正在创建 PVE 房间…';
   console.info('[PVE] create_pve_room: sending request');
-  socket.timeout(5000).emit('create_pve_room', { playerName: playerName() }, (error, result) => {
+  socket.emit('create_pve_room', { playerName: playerName() });
+  // 5秒超时保护
+  window.__pveCreateTimeout = setTimeout(() => {
     button.disabled = false;
-    if (error) {
-      console.error('[PVE] create_pve_room: timed out', error);
-      showError('PVE 房间创建超时，请检查网络后重试。');
-      return;
-    }
-    if (!result?.ok) {
-      console.error('[PVE] create_pve_room: rejected', result);
-      showError(result?.message || 'PVE 房间创建失败，请稍后重试。');
-      return;
-    }
-    console.info(`[PVE] create_pve_room: server created ${result.roomId}`);
-    $('topStatus').textContent = `PVE 房间 ${result.roomId} 已创建`;
-  });
+    console.error('[PVE] create_pve_room: timed out (no pve_room_created received)');
+    showError('PVE 房间创建超时，请检查网络后重试。');
+  }, 5000);
 }
 
 function joinPve(id) {
@@ -276,6 +268,7 @@ socket.on('pvp_game_over', ({ winnerName, reason, players }) => {
 
 socket.on('pve_room_created', ({ roomId }) => {
   console.info(`[PVE] pve_room_created: received ${roomId}`);
+  if (window.__pveCreateTimeout) { clearTimeout(window.__pveCreateTimeout); window.__pveCreateTimeout = null; }
   $('createPveRoom').disabled = false;
   $('pveRoomIdLabel').textContent = roomId;
   $('sharePveRoomBtn').classList.remove('hidden');
@@ -296,6 +289,7 @@ socket.on('pve_room_state', (state) => {
 });
 socket.on('pve_room_error', ({ message }) => {
   console.error('[PVE] pve_room_error:', message);
+  if (window.__pveCreateTimeout) { clearTimeout(window.__pveCreateTimeout); window.__pveCreateTimeout = null; }
   $('createPveRoom').disabled = false;
   $('joinPveRoom').disabled = false;
   showError(message);
