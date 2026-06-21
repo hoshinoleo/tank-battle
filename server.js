@@ -122,6 +122,10 @@ function joinPveRoom(socket, id, name) {
   }
   const room = pveRooms.get(key);
   if (!room) {
+    if (rooms.has(key)) {
+      socket.emit('pve_redirect_pvp', { roomId: key, message: '该房间是 PVP 房间，正在跳转…' });
+      return;
+    }
     socket.emit('pve_room_error', { message: 'PVE 房间不存在。' });
     return;
   }
@@ -231,6 +235,10 @@ function joinRoom(socket, id, name) {
   }
   const room = rooms.get(key);
   if (!room) {
+    if (pveRooms.has(key)) {
+      socket.emit('room_redirect_pve', { roomId: key, message: '该房间是 PVE 房间，正在跳转…' });
+      return;
+    }
     socket.emit('room_error', { message: '房间不存在。' });
     return;
   }

@@ -174,36 +174,9 @@ function joinPve(id) {
     showError('房间号格式错误，请输入 6 位数字。');
     return;
   }
-  const button = $('joinPveRoom');
-  button.disabled = true;
-  $('topStatus').textContent = `正在查询房间 ${roomId}…`;
-  console.info(`[room] check_room: querying ${roomId} from PVE view`);
-  socket.timeout(5000).emit('check_room', { roomId }, (error, result) => {
-    button.disabled = false;
-    if (error) {
-      console.error(`[room] check_room: timed out for ${roomId}`, error);
-      showError('房间查询超时，请检查网络后重试。');
-      return;
-    }
-    console.info(`[room] check_room: ${roomId} is ${result?.type || 'not-found'}`);
-    if (!result?.ok) {
-      showError(result?.message || '房间不存在。');
-      return;
-    }
-    if (result.type === 'pvp') {
-      console.info(`[room] auto-switching to PVP room ${roomId}`);
-      $('joinRoomId').value = roomId;
-      showView('pvp');
-      joinPvp(roomId);
-      return;
-    }
-    if (result.type === 'pve') {
-      console.info(`[PVE] join_pve_room: sending request for ${roomId}`);
-      socket.emit('join_pve_room', { roomId, playerName: playerName() });
-      return;
-    }
-    showError('房间类型无法识别。');
-  });
+  console.info(`[PVE] join_pve_room: sending request for ${roomId}`);
+  socket.emit('join_pve_room', { roomId, playerName: playerName() });
+  $('topStatus').textContent = '正在加入 PVE 房间…';
 }
 
 async function copyRoomText(text) {
@@ -231,6 +204,7 @@ function returnLobby() {
   $('pvpOverlay').innerHTML = '<h2>PVP 房间</h2><p>创建房间或输入房间号加入。房主手动开始，至少 2 人，最多 4 人。</p>';
   $('pveRoomIdLabel').textContent = '------';
   $('sharePveRoomBtn').classList.add('hidden');
+  $('pveRoomPlayers').innerHTML = '';
   $('pveOverlay').classList.remove('hidden');
   $('pveOverlay').innerHTML = '<h2>PVE 房间</h2><p>创建房间或输入房间号加入，房主开始游戏。</p>';
   showView('lobby');
@@ -280,6 +254,7 @@ socket.on('pve_room_state', (state) => {
   pveIsHost = state.hostId === socket.id;
   $('pveRoomIdLabel').textContent = state.roomId || '------';
   $('sharePveRoomBtn').classList.toggle('hidden', !state.roomId);
+  renderPveRoomPlayers(state.players || []);
   updatePveToolbar();
   if (state.status === 'waiting') {
     const names = (state.players || []).map((player) => player.name).join('、');
@@ -294,6 +269,18 @@ socket.on('pve_room_error', ({ message }) => {
   $('joinPveRoom').disabled = false;
   showError(message);
 });
+socket.on('pve_redirect_pvp', ({ roomId, message }) => {
+  console.info(`[room] redirecting to PVP room ${roomId}`);
+  $('joinRoomId').value = roomId;
+  showView('pvp');
+  joinPvp(roomId);
+});
+socket.on('room_redirect_pve', ({ roomId, message }) => {
+  console.info(`[room] redirecting to PVE room ${roomId}`);
+  $('joinPveRoomId').value = roomId;
+  showView('pve');
+  joinPve(roomId);
+});
 socket.on('pve_room_notice', ({ message }) => { $('topStatus').textContent = message; });
 socket.on('pve_room_closed', ({ message }) => {
   showError(message);
@@ -301,6 +288,7 @@ socket.on('pve_room_closed', ({ message }) => {
   pveRoom = null;
   pveIsHost = false;
   $('pveRoomIdLabel').textContent = '------';
+  $('pveRoomPlayers').innerHTML = '';
 });
 socket.on('pve_game_started', ({ playerCount }) => {
   $('pveOverlay').classList.add('hidden');
@@ -325,6 +313,17 @@ function renderPvpPlayers() {
       <span>血量 ${'♥'.repeat(Math.max(0, player.hp || 0)) || '观战'} · 击杀 ${player.kills || 0}</span>
     </div>
   `).join('');
+}
+
+function renderPveRoomPlayers(players) {
+  $('pveRoomPlayers').innerHTML = players.length === 0
+    ? '<div class="player-row"><span style="color:var(--muted)">等待玩家加入…</span></div>'
+    : players.map((player) => `
+      <div class="player-row">
+        <span class="color-dot" style="background:${player.id === pveRoom?.hostId ? '#d9b85f' : '#4488d9'}"></span>
+        <strong>${player.name}${player.id === pveRoom?.hostId ? '（房主）' : ''}</strong>
+      </div>
+    `).join('');
 }
 
 function pveSnapshot(now) {
